@@ -1,75 +1,56 @@
-# preprocess_oncology_metrics.py
+# app_cancer_stats_dashboard.py
 
+import streamlit as st
 import pandas as pd
-import numpy as np
+from io import BytesIO
 
-# -------------------------
-# 1️⃣ Load raw Excel
-# -------------------------
-file_path = "raw_oncology_data.xlsx"  # change this to your file
-df = pd.read_excel(file_path)
+st.set_page_config(page_title="Cancer Metrics Dashboard", layout="wide")
+st.title("Cancer Metrics Aggregation Dashboard")
 
-cancer_col = "Cancer Category"
-month_col = "Month"
+# 1. Upload Excel file
+uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx", "xls"])
 
-# List of metrics to compute stats on
-metric_cols = [
-    "1st visit - WIC acceptance",
-    "WIC acceptance - 1st OPD visit",
-    "1st OPD visit - MDT",
-    "MDT - 1st day of treatment",
-    "Number of days"
-]
+if uploaded_file:
+    df = pd.read_excel(uploaded_file)
+    st.success("File loaded successfully!")
+    st.dataframe(df.head(5))
 
-# -------------------------
-# 2️⃣ Robust numeric cleaning
-# -------------------------
-for col in metric_cols:
-    df[col] = df[col].astype(str).str.strip()                     # remove spaces
-    df[col] = df[col].str.replace(r'[^\d.]', '', regex=True)     # remove non-numeric chars
-    df[col] = pd.to_numeric(df[col], errors='coerce')            # convert to numeric
-
-# -------------------------
-# 3️⃣ Aggregate per Cancer Category + Month
-# -------------------------
-agg_funcs = {
-    "Mean": np.nanmean,
-    "Median": np.nanmedian,
-    "SD": lambda x: np.nanstd(x, ddof=1),
-    "Max": np.nanmax,
-    "Min": np.nanmin
-}
-
-result_rows = []
-
-for metric in metric_cols:
-    grouped = df.groupby([cancer_col, month_col])[metric].agg(agg_funcs).reset_index()
+    # 2. Select columns
+    month_col = st.selectbox("Select the Month column", df.columns)
+    cancer_col = st.selectbox("Select the Cancer Category column", df.columns)
     
-    # Rename columns to include metric name
-    grouped = grouped.rename(columns={
-        "Mean": f"Mean of {metric}",
-        "Median": f"Median of {metric}",
-        "SD": f"SD of {metric}",
-        "Max": f"Max of {metric}",
-        "Min": f"Min of {metric}"
-    })
+    # Parameter selection (up to 5)
+    parameter_cols = st.multiselect(
+        "Select up to 5 parameters",
+        df.columns,
+        default=df.columns[:5]
+    )
+
+    if len(parameter_cols) > 5:
+        st.warning("Please select no more than 5 parameters.")
     
-    result_rows.append(grouped)
+    elif len(parameter_cols) > 0:
+        # 3. Create aggregation functions
+        agg_funcs = {
+            "Mean": "mean",
+            "Median": "median",
+            "Standard Deviation": "std",
+            "Maximum": "max",
+            "Minimum": "min"
+        }
 
-# -------------------------
-# 4️⃣ Merge all metrics into a single DataFrame
-# -------------------------
-from functools import reduce
-
-processed_df = reduce(lambda left, right: pd.merge(left, right, on=[cancer_col, month_col]), result_rows)
-
-# Round numeric columns
-numeric_cols = [col for col in processed_df.columns if col not in [cancer_col, month_col]]
-processed_df[numeric_cols] = processed_df[numeric_cols].round(2)
-
-# -------------------------
-# 5️⃣ Save processed sheet
-# -------------------------
-processed_file = "processed_oncology_metrics.xlsx"
-processed_df.to_excel(processed_file, index=False)
-print(f"Processed file saved as '{processed_file}'")
+        # 4. Create a BytesIO object to save Excel
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            for stat_name, func in agg_funcs.items():
+                # Group by Cancer Category
+                grouped = df.groupby(cancer_col)[parameter_cols].agg(func).reset_index()
+                grouped.to_excel(writer, sheet_name=stat_name, index=False)
+        
+        # 5. Provide download
+        st.download_button(
+            label="Download Aggregated Excel",
+            data=output.getvalue(),
+            file_name="cancer_category_metrics.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
