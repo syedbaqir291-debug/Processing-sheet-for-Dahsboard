@@ -47,11 +47,7 @@ if uploaded_file:
                 grouped = df.groupby([month_col, cancer_col])[parameter_cols].agg(func).reset_index()
                 grouped.to_excel(writer, sheet_name=stat_name, index=False)
 
-            # 5️⃣ Combined SD across all months
-            sd_combined = df.groupby(cancer_col)[parameter_cols].std().reset_index()
-            sd_combined.to_excel(writer, sheet_name="SD_Combined", index=False)
-
-        # 6️⃣ Download button
+        # 5️⃣ Download button
         st.download_button(
             label="Download Precomputed Excel",
             data=output.getvalue(),
@@ -59,4 +55,4 @@ if uploaded_file:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
-        st.success("Precomputed Excel ready with 6 sheets (Mean, Median, Max, Min, SD, SD_Combined)!")
+        st.success("Precomputed Excel ready with 5 sheets (Mean, Median, Max, Min, SD)!")
