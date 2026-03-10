@@ -1,7 +1,4 @@
-pandas
-numpy
-openpyxl
-plotly
 streamlit
-altair==4.2.0
-vega_datasets
+pandas
+openpyxl
+XlsxWriter
