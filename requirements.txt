@@ -3,3 +3,5 @@ numpy
 openpyxl
 plotly
 streamlit
+altair
+vega_datasets
