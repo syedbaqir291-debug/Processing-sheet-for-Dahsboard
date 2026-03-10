@@ -1,56 +1,62 @@
-# app_cancer_stats_dashboard.py
+# app_oncology_precompute.py
 
 import streamlit as st
 import pandas as pd
 from io import BytesIO
 
-st.set_page_config(page_title="Cancer Metrics Dashboard", layout="wide")
-st.title("Cancer Metrics Aggregation Dashboard")
+st.set_page_config(page_title="Oncology Precompute Metrics", layout="wide")
+st.title("Oncology Metrics Precompute (Multi-Sheet)")
 
-# 1. Upload Excel file
-uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx", "xls"])
+# 1️⃣ Upload raw data
+uploaded_file = st.file_uploader("Upload Raw Excel File", type=["xlsx", "xls"])
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file)
     st.success("File loaded successfully!")
     st.dataframe(df.head(5))
 
-    # 2. Select columns
-    month_col = st.selectbox("Select the Month column", df.columns)
-    cancer_col = st.selectbox("Select the Cancer Category column", df.columns)
-    
-    # Parameter selection (up to 5)
+    # 2️⃣ Select columns
+    month_col = st.selectbox("Select Month Column", df.columns)
+    cancer_col = st.selectbox("Select Cancer Category Column", df.columns)
     parameter_cols = st.multiselect(
-        "Select up to 5 parameters",
+        "Select up to 5 Parameters",
         df.columns,
         default=df.columns[:5]
     )
 
     if len(parameter_cols) > 5:
         st.warning("Please select no more than 5 parameters.")
-    
-    elif len(parameter_cols) > 0:
-        # 3. Create aggregation functions
+    elif len(parameter_cols) == 0:
+        st.warning("Select at least one parameter.")
+    else:
+        st.success("Ready to generate precomputed metrics.")
+
+        # 3️⃣ Compute aggregations
         agg_funcs = {
             "Mean": "mean",
             "Median": "median",
-            "Standard Deviation": "std",
             "Maximum": "max",
-            "Minimum": "min"
+            "Minimum": "min",
+            "SD": "std"
         }
 
-        # 4. Create a BytesIO object to save Excel
+        # 4️⃣ Prepare Excel writer
         output = BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
             for stat_name, func in agg_funcs.items():
-                # Group by Cancer Category
-                grouped = df.groupby(cancer_col)[parameter_cols].agg(func).reset_index()
+                grouped = df.groupby([month_col, cancer_col])[parameter_cols].agg(func).reset_index()
                 grouped.to_excel(writer, sheet_name=stat_name, index=False)
-        
-        # 5. Provide download
+
+            # 5️⃣ Combined SD across all months
+            sd_combined = df.groupby(cancer_col)[parameter_cols].std().reset_index()
+            sd_combined.to_excel(writer, sheet_name="SD_Combined", index=False)
+
+        # 6️⃣ Download button
         st.download_button(
-            label="Download Aggregated Excel",
+            label="Download Precomputed Excel",
             data=output.getvalue(),
-            file_name="cancer_category_metrics.xlsx",
+            file_name="oncology_metrics_precomputed.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
+        st.success("Precomputed Excel ready with 6 sheets (Mean, Median, Max, Min, SD, SD_Combined)!")
